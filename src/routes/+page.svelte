@@ -13,21 +13,41 @@
   let completedStats = {}
   let view = 'weekly'
 
-  // standard tasks (loaded once)
-  const standardTasks = Array.from({ length: 10 }, (_, i) => ({
-    id: crypto.randomUUID(),
-    title: `Task-${i + 1}`,
-    priority: i + 1
-  }))
+  // localStorage keys
+  const STORAGE_KEY = 'todo-priority-queue'
+  const STATS_KEY = 'todo-completed-stats'
+
+  /* ---------------------------
+     PERSISTENCE HELPERS
+  ---------------------------- */
+  function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(heap.heap))
+    localStorage.setItem(STATS_KEY, JSON.stringify(completedStats))
+  }
+
+  function loadState() {
+    const storedTodos = localStorage.getItem(STORAGE_KEY)
+    const storedStats = localStorage.getItem(STATS_KEY)
+
+    if (storedTodos) {
+      const parsed = JSON.parse(storedTodos)
+      parsed.forEach(task => heap.insert(task))
+      todos = heap.heap.slice()
+    }
+
+    if (storedStats) {
+      completedStats = JSON.parse(storedStats)
+    }
+  }
 
   /* ---------------------------
      INITIAL LOAD
   ---------------------------- */
   onMount(async () => {
-    standardTasks.forEach(task => heap.insert(task))
-    todos = heap.heap.slice()
+    loadState()
     await tick()
     animateTasks()
+    animateStats()
   })
 
   /* ---------------------------
@@ -46,12 +66,13 @@
     title = ''
     priority = 5
 
+    saveState()
     await tick()
     animateTasks()
   }
 
   /* ---------------------------
-     REMOVE TOP PRIORITY
+     COMPLETE TOP PRIORITY
   ---------------------------- */
   async function removeTop() {
     if (!todos.length) return
@@ -74,6 +95,7 @@
     completedStats[today] = (completedStats[today] || 0) + 1
     completedStats = { ...completedStats }
 
+    saveState()
     fireConfetti()
 
     await tick()
@@ -82,7 +104,7 @@
   }
 
   /* ---------------------------
-     TASK ANIMATIONS + COLORS
+     TASK ANIMATIONS
   ---------------------------- */
   function animateTasks() {
     gsap.from('.task-card', {
@@ -107,16 +129,8 @@
         glow = '0 0 12px rgba(250,204,21,0.5)'
       }
 
-      gsap.to(card, {
-        boxShadow: glow,
-        duration: 0.3
-      })
-
-      gsap.to(card, {
-        borderLeftColor: color,
-        duration: 0.3
-      })
-
+      gsap.to(card, { boxShadow: glow, duration: 0.3 })
+      gsap.to(card, { borderLeftColor: color, duration: 0.3 })
       gsap.to(card.querySelector('.priority-badge'), {
         backgroundColor: color,
         duration: 0.3
@@ -125,7 +139,7 @@
   }
 
   /* ---------------------------
-     STATS BAR ANIMATION
+     STATS ANIMATION
   ---------------------------- */
   function animateStats() {
     const bars = document.querySelectorAll('.stat-bar')
@@ -137,10 +151,7 @@
       const height = count * 20
 
       tl.to(bar, {
-        attr: {
-          height,
-          y: 120 - height
-        },
+        attr: { height, y: 120 - height },
         duration: 0.4,
         ease: 'power2.out'
       }, '-=0.25')
@@ -199,7 +210,9 @@
     <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="col-span-2 rounded-2xl p-8 bg-white/5 backdrop-blur border border-white/10">
         <h1 class="text-3xl font-bold mb-2">Priority Task Dashboard</h1>
-        <p class="text-slate-300">Heap + GSAP powered productivity UI</p>
+        <p class="text-slate-300">
+          Persistent heap-based task manager with GSAP animations
+        </p>
       </div>
 
       <div class="rounded-2xl p-6 bg-white/5 backdrop-blur border border-white/10 text-center">
@@ -227,7 +240,13 @@
           Priority: <strong>{priority}</strong>
         </label>
 
-        <input type="range" min="1" max="10" bind:value={priority} class="w-full my-3" />
+        <input
+          type="range"
+          min="1"
+          max="10"
+          bind:value={priority}
+          class="w-full my-3"
+        />
 
         <button
           on:click={addTodo}
@@ -271,10 +290,18 @@
         <h2 class="text-lg font-semibold">Completion Analytics</h2>
 
         <div class="flex gap-2">
-          <button on:click={() => (view = 'weekly')} class="px-3 py-1 rounded-full text-sm bg-indigo-600">
+          <button
+            on:click={() => (view = 'weekly')}
+            class="px-3 py-1 rounded-full text-sm
+              {view === 'weekly' ? 'bg-indigo-600' : 'bg-white/10'}"
+          >
             Weekly
           </button>
-          <button on:click={() => (view = 'monthly')} class="px-3 py-1 rounded-full text-sm bg-white/10">
+          <button
+            on:click={() => (view = 'monthly')}
+            class="px-3 py-1 rounded-full text-sm
+              {view === 'monthly' ? 'bg-indigo-600' : 'bg-white/10'}"
+          >
             Monthly
           </button>
         </div>
